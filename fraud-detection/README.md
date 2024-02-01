@@ -51,3 +51,18 @@ To auto-generate API document for your project, run:
 ```bash
 make docs
 ```
+
+
+
+
+My steps:
+
+poetry install
+make install
+make activate
+dvc remote add -d remote https://drive.google.com/drive/folders/149FDyp6vIkTHel6UXXZPz8jBAxf7U-TK
+
+dvc push
+
+❯ python src/process.py
+

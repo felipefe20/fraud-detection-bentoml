@@ -15,9 +15,7 @@ def process_data(config: DictConfig):
     print(f"Process data using {config.data.raw}")
     print(f"Columns used: {config.process.use_columns}")
     df=pd.read_csv(config.data.raw)
-    df.drop_duplicates(inplace=True)
-    df= df.drop('Time', axis=1)
-    numeric_columns = (list(df.loc[:, 'V1':'Amount']))
+    df.to_csv(config.data.processed, index=False)
 
 
 if __name__ == "__main__":
