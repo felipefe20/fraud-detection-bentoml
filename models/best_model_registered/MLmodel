@@ -1,0 +1,10 @@
+flavors:
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.4.0
+mlflow_version: 2.10.0
+model_size_bytes: 3214
+model_uuid: 06290d5f8d8a40ab85acc0e36561add6
+utc_time_created: '2024-02-01 17:49:06.116724'

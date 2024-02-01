@@ -1,3 +1,23 @@
-use_columns: 
+drop_columns: 
+  [
+    "trans_date_trans_time",
+    "cc_num",
+    "merchant",
+    "first",
+    "last",
+    "street",
+    "city",
+    "state",
+    "lat",
+    "long",
+    "city_pop",
+    "dob",
+    "trans_num",
+    "unix_time",
+    "merch_lat",
+    "merch_long",
+    "is_fraud"
+  ]
+target_column: 
   - is_fraud
   

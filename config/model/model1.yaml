@@ -1,2 +1,13 @@
 name: model1
+hyperparameters:
+  #hyperparameters here for random forest classifier
+  random_state: 42
+  max_depth: 10 
+  min_samples_leaf: 0.2 
+  min_samples_split: 5 
+  criterion: 'gini'
+  n_estimators: 100
+
 test_size: 0.2
+
+
