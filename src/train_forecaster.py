@@ -18,28 +18,6 @@ from sklearn.metrics import (
 )
 
 
-@hydra.main(config_path="config", config_name="main")
-def config_Setup(cfg: DictConfig) -> None:
-    tracking_uri = cfg.tracking_uri
-    MODEL_BASE_NAME = cfg.model_base_name
-    repo_owner = cfg.repo_owner
-    repo_name = cfg.repo_name
-    mlflow_true = cfg.mlflow
-    stores = cfg.stores
-    return tracking_uri, MODEL_BASE_NAME, repo_owner, repo_name, mlflow_true, stores
-
-
-(
-    tracking_uri,
-    MODEL_BASE_NAME,
-    repo_owner,
-    repo_name,
-    mlflow_true,
-    stores,
-) = config_Setup()
-
-
-dagshub.init(repo_owner, repo_name, mlflow=mlflow_true)
 
 
 def prep_store_data(
@@ -153,103 +131,98 @@ def train_predict(
 #     ax.set_ylabel('Sales')
 #     plt.tight_layout()
 #     plt.savefig('store_data_forecast.png')
+import logging
+import pandas as pd
+from mlflow.tracking import MlflowClient
+import mlflow
 
-
-if __name__ == "__main__":
-    import logging
-
+def setup_logging():
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     logging.basicConfig(format=log_format, level=logging.INFO)
 
-    tracking_uri = tracking_uri
-
-    # tracking_uri = "http://0.0.0.0:5001"
+def setup_mlflow(tracking_uri):
     mlflow.set_tracking_uri(tracking_uri)
     client = MlflowClient(tracking_uri=tracking_uri)
     logging.info("Defined MLFlowClient and set tracking URI.")
+    return client
 
-    # mlflow.set_experiment("prophet_models_05042023")
-    # mlflow.autolog()
-
-    # If data present, read it in, otherwise, download it
-    file_path = "data/raw/train.csv"
-
+def load_data(file_path):
     df = pd.read_csv(file_path)
-
     logging.info("Training data retrieved.")
+    return df
 
-    for store_id in stores:
-        with mlflow.start_run():
-            logging.info("Started MLFlow run")
-            # Transform dataset in preparation for feeding to Prophet
+def train_and_log_model(df, store_id, MODEL_BASE_NAME, seasonality):
+    with mlflow.start_run():
+        logging.info("Started MLFlow run")
+        df_transformed = prep_store_data(df, store_id=int(store_id))
+        logging.info("Transformed data")
 
-            df_transformed = prep_store_data(df, store_id=int(store_id))
-            logging.info("Transformed data")
+        model_name = f"{MODEL_BASE_NAME}-{store_id}"
+        mlflow.autolog()
 
-            model_name = f"{MODEL_BASE_NAME}-{store_id}"
-            mlflow.autolog()
+        logging.info("Splitting data")
+        df_train, df_test = train_test_split_forecaster(df=df_transformed, train_fraction=0.75)
+        logging.info("Data split")
 
-            # Define main parameters for modelling
-            seasonality = {"yearly": True, "weekly": True, "daily": False}
+        logging.info("Training model")
+        forecaster = train_forecaster(df_train=df_train, seasonality=seasonality)
+        run_id = mlflow.active_run().info.run_id
+        logging.info("Model trained")
 
-            logging.info("Splitting data")
-            # Split the data
-            df_train, df_test = train_test_split_forecaster(
-                df=df_transformed, train_fraction=0.75
-            )
-            logging.info("Data split")
+        mlflow.prophet.log_model(forecaster, artifact_path="model")
+        logging.info("Logged model")
 
-            # Train the model
-            logging.info("Training model")
-            forecaster = train_forecaster(df_train=df_train, seasonality=seasonality)
-            run_id = mlflow.active_run().info.run_id
-            logging.info("Model trained")
-
-            mlflow.prophet.log_model(forecaster, artifact_path="model")
-            logging.info("Logged model")
-
-            mlflow.log_params(seasonality)
-            mlflow.log_metrics(
-                {
-                    "rmse": mean_squared_error(
-                        y_true=df_test["y"],
-                        y_pred=forecaster.predict(df_test)["yhat"],
-                        squared=False,
-                    ),
-                    "mean_abs_perc_error": mean_absolute_percentage_error(
-                        y_true=df_test["y"], y_pred=forecaster.predict(df_test)["yhat"]
-                    ),
-                    "mean_abs_error": mean_absolute_error(
-                        y_true=df_test["y"], y_pred=forecaster.predict(df_test)["yhat"]
-                    ),
-                    "median_abs_error": median_absolute_error(
-                        y_true=df_test["y"], y_pred=forecaster.predict(df_test)["yhat"]
-                    ),
-                }
-            )
-
-        # The default path where the MLflow autologging function stores the model
-        artifact_path = "model"
-        model_uri = "runs:/{run_id}/{artifact_path}".format(
-            run_id=run_id, artifact_path=artifact_path
+        mlflow.log_params(seasonality)
+        mlflow.log_metrics(
+            {
+                "rmse": mean_squared_error(y_true=df_test["y"], y_pred=forecaster.predict(df_test)["yhat"], squared=False),
+                "mean_abs_perc_error": mean_absolute_percentage_error(y_true=df_test["y"], y_pred=forecaster.predict(df_test)["yhat"]),
+                "mean_abs_error": mean_absolute_error(y_true=df_test["y"], y_pred=forecaster.predict(df_test)["yhat"]),
+                "median_abs_error": median_absolute_error(y_true=df_test["y"], y_pred=forecaster.predict(df_test)["yhat"]),
+            }
         )
 
-        # Register the model
+        artifact_path = "model"
+        model_uri = "runs:/{run_id}/{artifact_path}".format(run_id=run_id, artifact_path=artifact_path)
+
         model_details = mlflow.register_model(model_uri=model_uri, name=model_name)
         logging.info("Model registered")
 
-        # # Create new model version
-        # mv = client.create_model_version(
-        #     model_name,
-        #     model_uri,
-        #     run_id,
-        #     description="Prophet model for item demand.")
-        # logging.info("Model version created")
+        return model_details, run_id
 
-        # Transition model to production
-        client.transition_model_version_stage(
-            name=model_details.name,
-            version=model_details.version,
-            stage="production",
-        )
-        logging.info("Model transitioned to prod stage")
+def transition_model_to_prod(client, model_details):
+    client.transition_model_version_stage(
+        name=model_details.name,
+        version=model_details.version,
+        stage="production",
+    )
+    logging.info("Model transitioned to prod stage")
+
+
+
+
+@hydra.main(config_path="../config", config_name="main")
+def main(cfg: DictConfig) -> None:
+    tracking_uri = cfg.tracking_uri
+    MODEL_BASE_NAME = cfg.MODEL_BASE_NAME
+    repo_owner = cfg.repo_owner
+    repo_name = cfg.repo_name
+    mlflow_true = cfg.mlflow
+    stores = cfg.stores
+
+    dagshub.init(repo_owner, repo_name, mlflow=mlflow_true)
+
+    setup_logging()
+
+    client = setup_mlflow(tracking_uri)
+    file_path = "data/raw/train.csv"
+    df = load_data(file_path)
+
+    seasonality = {"yearly": True, "weekly": True, "daily": False}
+
+    for store_id in stores:
+        model_details, run_id = train_and_log_model(df, store_id, MODEL_BASE_NAME, seasonality)
+        transition_model_to_prod(client, model_details)
+
+if __name__ == "__main__":
+    main()

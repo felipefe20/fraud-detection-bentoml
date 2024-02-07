@@ -19,7 +19,7 @@ models = {}
 app = FastAPI()
 
 
-@hydra.main(config_path="config", config_name="main")
+@hydra.main(config_path="../config", config_name="main")
 def config_Setup(cfg: DictConfig) -> None:
     tracking_uri = cfg.tracking_uri
     MODEL_BASE_NAME = cfg.model_base_name
