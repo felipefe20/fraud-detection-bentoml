@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.11
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run tests
+      run: |
+        python -m unittest tests.TestModel.test_train_model
+
+    - name: Train model and log to MLflow
+      run: |
+        # Add commands to train your model and log to MLflow here
+
+    - name: Deploy FastAPI application
+      run: |
+        # uvicorn src.app:app --host 127.0.0.1 --port 8000
