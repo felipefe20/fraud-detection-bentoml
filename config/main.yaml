@@ -1,5 +1,5 @@
 hydra:
-  output_subdir: null  
+  output_subdir: null
   run:
     dir: .
 
@@ -12,3 +12,12 @@ data:
   raw: data/raw/fraudTrain.csv
   processed: data/processed/processed_fraud.csv
   #final: data/final/final.csv
+
+
+repo_owner: "ofelipefernandez"
+repo_name: "model-deployment-bentoml"
+mlflow: True
+tracking_uri: 'https://dagshub.com/ofelipefernandez/model-deployment-bentoml.mlflow'
+MODEL_BASE_NAME : "prophet-retail-forecaster-store-"
+
+stores: ["1","2","3","4","5","6","7","8","9","10"]
